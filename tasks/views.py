@@ -7,7 +7,10 @@ from django.contrib.auth import login, logout, authenticate
 from django.db import IntegrityError
 from .forms import TasksForm
 from .models import Task
+from django.utils import timezone
+from django.contrib.auth.decorators import login_required
 # Create your views here.
+
 def home (request):
     return render(request, 'home.html')
 
@@ -32,11 +35,16 @@ def signup(request):
                     "error": 'El Ususario ya Existe'   
                 })
         return HttpResponse('Password no Coincide')    
-    
+@login_required    
 def tasks(request):
-        tasks = Task.objects.filter(user=request.user)
+        tasks = Task.objects.filter(user=request.user, detacompleted__isnull=True)
         return render(request, 'tasks.html', {'tasks': tasks})
-
+@login_required
+def tasks_completed(request):
+        tasks = Task.objects.filter(user=request.user, detacompleted__isnull=False).order_by
+        ('-datecompleted')
+        return render(request, 'tasks.html', {'tasks': tasks})
+@login_required
 def create_task(request):
      
      if request.method == 'GET':
@@ -55,12 +63,35 @@ def create_task(request):
             'form': TasksForm,
             'error': 'Igrese datos validos'
             })
-
+@login_required
 def task_detail(request, task_id):
-    task = get_object_or_404(Task, pk=task_id)
-    form = TasksForm(instance=task)
-    return render(request, 'task_datail.html', {'task':task,'form': form})
-
+    if request.method == 'GET':
+        task = get_object_or_404(Task, pk=task_id, user=request.user)
+        form = TasksForm(instance=task)
+        return render(request, 'task_detail.html', {'task': task,'form': form})
+    else:
+        try:
+            task = get_object_or_404(Task, pk=task_id, user=request.user)
+            form = TasksForm(request.POST, instance=task)
+            form.save()
+            return redirect('tasks')
+        except ValueError:
+            return render(request, 'task_detail.html', {'task': task,'form': form, 
+            'error': "Error Actualizando datos"})
+@login_required
+def complete_task(request,task_id):
+    task = get_object_or_404(Task, pk=task_id, user=request.user)
+    if request.method == 'POST':
+        task.detacompleted = timezone.now()
+        task.save()
+        return redirect('tasks')
+@login_required
+def delete_task(request,task_id):
+    task = get_object_or_404(Task, pk=task_id, user=request.user)
+    if request.method == 'POST':
+        task.delete()
+        return redirect('tasks')    
+@login_required
 def salir(request):
      logout(request)
      return redirect('home')  
